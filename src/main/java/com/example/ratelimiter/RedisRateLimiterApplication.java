@@ -20,7 +20,7 @@ class RateLimitedController {
     @GetMapping("/hello")
     // Use your custom annotation here.
     // It allows a burst of 5 requests, refilling 1 token every second.
-    @RateLimit(capacity = 5, refillRate = 1)
+    @RateLimit(capacity = 5, refillRate = 0)
     public String hello(@RequestParam String userId) {
         return "Hello, " + userId + "! Token consumed successfully.";
     }
