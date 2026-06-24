@@ -52,15 +52,14 @@ public class RateLimitAspect {
         String timestampKey = "rate:tokenbucket:" + userId + ":" + methodName + ":timestamp";
         List<String> keys = Arrays.asList(bucketKey, timestampKey);
 
-        String currentEpochSecond = String.valueOf(Instant.now().getEpochSecond());
-
+        String currentEpochMilli = String.valueOf(Instant.now().toEpochMilli());
         // Fire atomic Lua operation inside Redis
         Long result = redisTemplate.execute(
                 tokenBucketScript,
                 keys,
                 String.valueOf(rateLimit.capacity()),
                 String.valueOf(rateLimit.refillRate()),
-                currentEpochSecond
+                currentEpochMilli
         );
 
         // If returned flag is 0, the client bucket has run dry

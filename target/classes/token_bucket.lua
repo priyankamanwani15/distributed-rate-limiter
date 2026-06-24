@@ -1,33 +1,41 @@
-local bucketKey = KEYS[1]
-local timestampKey = KEYS[2]
+-- KEYS[1]: rate:tokenbucket:userId:methodName:tokens
+-- KEYS[2]: rate:tokenbucket:userId:methodName:timestamp
+-- ARGV[1]: Max bucket capacity (5)
+-- ARGV[2]: Refill rate per second (1)
+-- ARGV[3]: Current timestamp in MILLISECONDS
 
-local maxCapacity = tonumber(ARGV[1])
-local refillRate = tonumber(ARGV[2])
+local tokens_key = KEYS[1]
+local timestamp_key = KEYS[2]
+
+local capacity = tonumber(ARGV[1])
+local refill_rate = tonumber(ARGV[2])
 local now = tonumber(ARGV[3])
 local requested = 1
 
-local currentTokens = tonumber(redis.call('get', bucketKey))
-local lastRefillTime = tonumber(redis.call('get', timestampKey))
+local tokens = tonumber(redis.call('GET', tokens_key))
+local last_updated = tonumber(redis.call('GET', timestamp_key))
 
-if currentTokens == nil then
-    currentTokens = maxCapacity
-    lastRefillTime = now
+if not tokens then
+    tokens = capacity
+    last_updated = now
+else
+    -- 🔥 MILLISECOND PRECISION: (now - last_updated) / 1000 se exact fractional tokens milenge
+    local elapsed = (now - last_updated) / 1000
+    if elapsed > 0 then
+        local generated = elapsed * refill_rate
+        tokens = math.min(capacity, tokens + generated)
+        last_updated = now
+    end
 end
 
-local elapsedTime = math.max(0, now - lastRefillTime)
-local generatedTokens = elapsedTime * refillRate
-currentTokens = math.min(maxCapacity, currentTokens + generatedTokens)
-lastRefillTime = now
-
-if currentTokens >= requested then
-    currentTokens = currentTokens - requested
-    redis.call('set', bucketKey, currentTokens)
-    redis.call('set', timestampKey, lastRefillTime)
-    redis.call('expire', bucketKey, 3600)
-    redis.call('expire', timestampKey, 3600)
-    return 1
+if tokens >= requested then
+    tokens = tokens - requested
+    redis.call('SET', tokens_key, tokens)
+    redis.call('SET', timestamp_key, last_updated)
+    redis.call('EXPIRE', tokens_key, 60)
+    redis.call('EXPIRE', timestamp_key, 60)
+    return 1 -- ALLOWED
 else
-    redis.call('set', bucketKey, currentTokens)
-    redis.call('set', timestampKey, lastRefillTime)
-    return 0
+    -- Request block hone par timestamp halkan se update nahi karenge taaki loop isko exploit na kare
+    return 0 -- BLOCKED
 end
