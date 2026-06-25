@@ -9,9 +9,17 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @SpringBootApplication
 public class RedisRateLimiterApplication {
+
+    // 🔥 Global thread-safe counters ko top-level PUBLIC class me shift kar diya!
+    public static final AtomicInteger totalAllowed = new AtomicInteger(0);
+    public static final AtomicInteger totalBlocked = new AtomicInteger(0);
+
     public static void main(String[] args) {
         SpringApplication.run(RedisRateLimiterApplication.class, args);
     }
@@ -25,7 +33,18 @@ class RateLimitedController {
     @GetMapping("/hello")
     @RateLimit(capacity = 5, refillRate = 0)
     public String hello(@RequestParam String userId) {
+        // Application context se reference link kiya
+        RedisRateLimiterApplication.totalAllowed.incrementAndGet();
         return "Hello, " + userId + "! Token consumed successfully.";
+    }
+
+    @GetMapping("/metrics")
+    @CrossOrigin(origins = "*")
+    public Map<String, Integer> getLiveMetrics() {
+        Map<String, Integer> metrics = new HashMap<>();
+        metrics.put("allowed", RedisRateLimiterApplication.totalAllowed.get());
+        metrics.put("blocked", RedisRateLimiterApplication.totalBlocked.get());
+        return metrics;
     }
 }
 
@@ -34,7 +53,6 @@ class RateLimitedController {
 @CrossOrigin(origins = "*")
 class GrafanaProxyController {
 
-    // 🔥 Zero-dependency bypass layer: Yeh bina kisi class ke direct local actuator endpoint se raw data khinch lega
     @RequestMapping(value = {"/query", "/query_range", "/label/__name__/values"})
     public String proxyGrafanaQueries() {
         try {
@@ -46,7 +64,9 @@ class GrafanaProxyController {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
             return response.body();
         } catch (Exception e) {
-            return "# HELP rate_limiter_requests_blocked_total Total blocked requests\n# TYPE rate_limiter_requests_blocked_total counter\nrate_limiter_requests_blocked_total 0";
+            return "# HELP rate_limiter_requests_blocked_total Total blocked requests\n" +
+                    "# TYPE rate_limiter_requests_blocked_total counter\n" +
+                    "rate_limiter_requests_blocked_total " + RedisRateLimiterApplication.totalBlocked.get();
         }
     }
 }

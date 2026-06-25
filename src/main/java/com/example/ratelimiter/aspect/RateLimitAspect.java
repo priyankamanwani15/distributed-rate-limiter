@@ -1,6 +1,8 @@
 package com.example.ratelimiter.aspect;
 
 
+
+
 import com.example.ratelimiter.annotation.RateLimit;
 import jakarta.servlet.http.HttpServletRequest;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -63,6 +65,8 @@ public class RateLimitAspect {
 
         // If returned flag is 0, the client bucket has run dry
         if (result == null || result == 0) {
+            // Jab user rate limit ho jaye tab metrics badhane ke liye:
+            com.example.ratelimiter.RedisRateLimiterApplication.totalBlocked.incrementAndGet();
             Counter.builder("rate_limiter_requests_blocked")
                     .tag("user", userId)
                     .tag("method", methodName)
