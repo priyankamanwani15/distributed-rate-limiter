@@ -15,6 +15,7 @@ public class RedisRateLimiterApplication {
 
 @RestController
 @RequestMapping("/api")
+@CrossOrigin(origins = "*", allowedHeaders = "*")
 class RateLimitedController {
 
     @GetMapping("/hello")
