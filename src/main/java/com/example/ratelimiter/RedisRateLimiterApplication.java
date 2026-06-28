@@ -4,6 +4,7 @@ import com.example.ratelimiter.annotation.RateLimit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -68,5 +69,13 @@ class GrafanaProxyController {
                     "# TYPE rate_limiter_requests_blocked_total counter\n" +
                     "rate_limiter_requests_blocked_total " + RedisRateLimiterApplication.totalBlocked.get();
         }
+    }
+}
+@Controller
+class WebRestController {
+    // 🔥 Catch-all router: Saari UI requests ko React ke index.html par forward karega
+    @RequestMapping(value = "{path:^(?!api|actuator)[^\\.]*}")
+    public String redirect() {
+        return "forward:/index.html";
     }
 }
